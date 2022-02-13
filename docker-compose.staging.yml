@@ -1,0 +1,69 @@
+# version is chosen by docker engine version: # https://docs.docker.com/compose/compose-file/#compose-and-docker-compatibility-matrix
+version: '3.8'
+
+services:
+  cache:
+    image: redis
+
+  db:
+    image: postgres:12
+    env_file:
+      - ./.env.staging.db
+    ports:
+      - "5432"
+    volumes:
+    - postgres_data:/var/lib/postgresql/data/
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    command: gunicorn application.wsgi:application --bind 0.0.0.0:8000
+    volumes:
+      - static_volume:/home/app/web/static  # serve static files
+      - media_volume:/home/app/web/media  # serve static files
+    expose:
+      - 8000
+    env_file: # get environment variables for django project
+      - ./.env.staging
+    depends_on:
+      - db
+      - cache
+
+  nginx:
+    build: ./nginx
+    container_name: nginx-proxy
+    restart: always
+    volumes:
+      - static_volume:/home/app/web/static  # serve static files
+      - media_volume:/home/app/web/media  # serve static files
+      - certs:/etc/nginx/certs
+      - html:/usr/share/nginx/html
+      - vhost:/etc/nginx/vhost.d
+      - /var/run/docker.sock:/tmp/docker.sock:ro
+    ports:
+      - 443:443
+      - 80:80
+    depends_on:
+      - web
+
+  nginx-proxy-letsencrypt:
+    image: jrcs/letsencrypt-nginx-proxy-companion
+    env_file:
+      - ./env.staging.proxy-companion
+      volumes:
+        - /var/run/docker.sock:/var/run/docker.sock:ro
+        - certs:/etc/nginx/certs
+        - html:/usr/share/nginx/html
+        - vhost:/etc/nginx/vhost.d
+      depends_on:
+        - nginx-proxy
+
+
+volumes:
+  postgres_data:  # To persist the data beyond the life of the container
+  static_volume:  # serve static files
+  media_volume:  # serve media files
+  certs:
+  html:
+  vhost:

@@ -1,0 +1,45 @@
+# version is chosen by docker engine version: # https://docs.docker.com/compose/compose-file/#compose-and-docker-compatibility-matrix
+version: '3.8'
+
+services:
+  cache: # this creates cache
+    image: redis
+  db: # this creates the postgresql database
+    image: postgres:12
+    env_file: # get environment variables for django project
+      - ./.env.prod.db
+    ports:
+      - "5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/  # To persist the data beyond the life of the container
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    command: gunicorn application.wsgi:application --bind 0.0.0.0:8000
+    volumes:
+      - static_volume:/home/app/web/static  # serve static files
+      - media_volume:/home/app/web/media  # serve static files
+    expose:
+      - 8000
+    env_file: # get environment variables for django project
+      - ./.env.prod
+    depends_on:
+      - db
+      - cache
+
+  nginx:
+    build: ./nginx
+    volumes:
+      - static_volume:/home/app/web/static  # serve static files
+      - media_volume:/home/app/web/media  # serve static files
+    ports:
+      - 1337:80
+    depends_on:
+      - web
+
+volumes:
+  postgres_data:  # To persist the data beyond the life of the container
+  static_volume:  # serve static files
+  media_volume:  # serve media files

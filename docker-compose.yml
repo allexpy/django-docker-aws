@@ -1,0 +1,28 @@
+# version is chosen by docker engine version: # https://docs.docker.com/compose/compose-file/#compose-and-docker-compatibility-matrix
+version: '3.8'
+
+services:
+  cache: # this creates cache
+    image: redis
+  db: # this creates the postgresql database
+    image: postgres:12
+    env_file: # get environment variables for django project
+      - ./.env.dev.db
+    ports:
+      - "5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/  # To persist the data beyond the life of the container
+
+  web:
+    build: .
+    command: python manage.py runserver 0.0.0.0:8000
+    ports:
+      - "8000:8000"
+    env_file: # get environment variables for django project
+      - ./.env.dev
+    depends_on:
+      - db
+      - cache
+
+volumes:
+  postgres_data:  # To persist the data beyond the life of the container
